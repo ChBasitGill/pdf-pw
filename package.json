@@ -1,0 +1,15 @@
+{
+  "name": "pdf-generator",
+  "version": "1.0.0",
+  "author": {
+    "name": "Jamil, Basit",
+    "email": "chbasitgill@gmail.com"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^4.18.2",
+    "playwright": "^1.40.0",
+    "handlebars": "^4.7.8",
+    "@google-cloud/storage": "^7.7.0"
+  }
+}
