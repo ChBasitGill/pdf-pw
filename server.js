@@ -2,43 +2,17 @@ const express = require('express');
 const playwright = require('playwright');
 const handlebars = require('handlebars');
 const { Storage } = require('@google-cloud/storage');
-const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
 
 const app = express();
-app.use(express.json({ limit: '50mb' })); // Large payload support
+const PORT = process.env.PORT || 8080;
+
+app.use(express.json({ limit: '50mb' }));
 
 const storage = new Storage();
 const BUCKET_NAME = 'pdf-pw-templates';
 
-// Swagger Setup
-const swaggerOptions = {
-    definition: {
-        openapi: '3.0.0',
-        info: { title: 'Pro PDF API', version: '1.1.0' },
-        servers: [{ url: 'https://pdf-service-777155886854.europe-north1.run.app' }],
-    },
-    apis: [__filename],
-};
-const specs = swaggerJsdoc(swaggerOptions);
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(specs));
-
-/**
- * @openapi
- * /generate:
- * post:
- * summary: Generate large multi-page PDF with graphs
- * requestBody:
- * content:
- * application/json:
- * schema:
- * type: object
- * properties:
- * templateName: { type: string }
- * data: { type: object }
- */
 app.post('/generate', async (req, res) => {
-    req.setTimeout(300000); // 5 min timeout
+    req.setTimeout(300000);
     const { templateName, data } = req.body;
     let browser;
 
@@ -47,22 +21,29 @@ app.post('/generate', async (req, res) => {
         const template = handlebars.compile(file.toString());
         const html = template(data);
 
-        browser = await playwright.chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+        browser = await playwright.chromium.launch({ args: ['--no-sandbox'] });
         const page = await browser.newPage();
 
-        // Wait for Network Idle to ensure Chart.js renders
-        await page.setContent(html, { waitUntil: 'networkidle', timeout: 60000 });
+        // 1. Set the HTML content
+        await page.setContent(html);
 
-        // Final buffer for any JS animations
+        // 2. Inject Tailwind CSS Playwright script 
+        // This processes all Tailwind classes in your HTML instantly
+        await page.addScriptTag({ url: 'https://cdn.tailwindcss.com' });
+
+        // 3. Wait for the engine to apply styles and charts
+        await page.waitForLoadState('networkidle');
         await page.waitForTimeout(1000);
 
         const pdf = await page.pdf({
             format: 'A4',
             printBackground: true,
+            margin: { top: '60px', bottom: '60px', left: '40px', right: '40px' },
             displayHeaderFooter: true,
-            headerTemplate: '<div style="font-size:10px; width:100%; text-align:right; padding-right:20px;">Confidential Report</div>',
-            footerTemplate: '<div style="font-size:10px; width:100%; text-align:center;">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>',
-            margin: { top: '60px', bottom: '60px' }
+            footerTemplate: `
+                <div style="font-size: 10px; width: 100%; text-align: center; font-family: sans-serif;">
+                    Page <span class="pageNumber"></span> of <span class="totalPages"></span>
+                </div>`
         });
 
         await browser.close();
@@ -73,6 +54,4 @@ app.post('/generate', async (req, res) => {
     }
 });
 
-app.get('/health', (req, res) => res.status(200).json({ status: 'UP' }));
-
-app.listen(8080);
+app.listen(PORT);
