@@ -6,6 +6,11 @@
     "email": "chbasitgill@gmail.com"
   },
   "license": "UNLICENSED",
+  "main": "server.js",
+  "description": "PDF generation with Playwright",
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "playwright": "^1.40.0",
