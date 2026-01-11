@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Build and Deploy Dual Stack
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
 env:
   PROJECT_ID: pdf-pw
   REGION: europe-north1
-  SERVICE_NAME: pdf-service
   BUCKET_NAME: pdf-pw-templates
 
 jobs:
@@ -26,25 +25,34 @@ jobs:
         with:
           credentials_json: "${{ secrets.GCP_SA_KEY }}"
 
-      # NEW STEP: Automatically syncs your local templates folder to GCS
+      # Sync the shared templates folder
       - name: Upload Templates to GCS
         uses: "google-github-actions/upload-cloud-storage@v2"
         with:
-          path: "templates/" # This folder in your repo
+          path: "templates/"
           destination: "${{ env.BUCKET_NAME }}"
-          parent: false # Uploads files directly into the bucket root
+          parent: false
 
-      - name: Build and Push Container
+      # --- NODE.JS SERVICE ---
+      - name: Build and Push Node.js
         run: |-
-          gcloud builds submit --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          gcloud builds submit nodejs/ --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/pdf-node:${{ github.sha }}
 
-      - name: Deploy to Cloud Run
+      - name: Deploy Node.js to Cloud Run
         run: |-
-          gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+          gcloud run deploy pdf-node \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/pdf-node:${{ github.sha }} \
             --region ${{ env.REGION }} \
-            --platform managed \
-            --cpu 2 \
-            --memory 4Gi \
-            --timeout 300 \
-            --allow-unauthenticated
+            --cpu 2 --memory 4Gi --timeout 300 --allow-unauthenticated
+
+      # --- PYTHON SERVICE ---
+      - name: Build and Push Python
+        run: |-
+          gcloud builds submit python/ --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/pdf-python:${{ github.sha }}
+
+      - name: Deploy Python to Cloud Run
+        run: |-
+          gcloud run deploy pdf-python \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/pdf-python:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --cpu 2 --memory 4Gi --timeout 300 --allow-unauthenticated
