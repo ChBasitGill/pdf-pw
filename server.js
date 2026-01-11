@@ -2,6 +2,8 @@ const express = require('express');
 const playwright = require('playwright');
 const handlebars = require('handlebars');
 const { Storage } = require('@google-cloud/storage');
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
 
 const app = express();
 app.use(express.json());
@@ -9,41 +11,83 @@ app.use(express.json());
 const storage = new Storage();
 const BUCKET_NAME = 'pdf-pw-templates';
 
-app.post('/generate', async (req, res) => {
-    const { templateName, data } = req.body; // e.g., templateName: "single-account.html"
+// --- Swagger Configuration ---
+const swaggerOptions = {
+    definition: {
+        openapi: '3.0.0',
+        info: {
+            title: 'Playwright PDF Generator API',
+            version: '1.0.0',
+            description: 'A GCP Cloud Run service to generate PDFs from GCS templates',
+        },
+        servers: [{ url: 'https://pdf-service-777155886854.europe-north1.run.app' }],
+    },
+    apis: ['./server.js'],
+};
+const specs = swaggerJsdoc(swaggerOptions);
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(specs));
 
+// --- Health Check Endpoint ---
+/**
+ * @openapi
+ * /health:
+ * get:
+ * description: Check if the service is alive
+ * responses:
+ * 200:
+ * description: Service is healthy
+ */
+app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'UP', timestamp: new Date() });
+});
+
+// --- PDF Generation Endpoint ---
+/**
+ * @openapi
+ * /generate:
+ * post:
+ * description: Generates a PDF from a template
+ * requestBody:
+ * required: true
+ * content:
+ * application/json:
+ * schema:
+ * type: object
+ * properties:
+ * templateName:
+ * type: string
+ * example: "single-account.html"
+ * data:
+ * type: object
+ * responses:
+ * 200:
+ * description: A PDF file
+ * content:
+ * application/pdf:
+ * schema:
+ * type: string
+ * format: binary
+ */
+app.post('/generate', async (req, res) => {
+    const { templateName, data } = req.body;
     let browser;
     try {
-        // 1. Get HTML from GCS using the exact name provided in JSON
         const [file] = await storage.bucket(BUCKET_NAME).file(templateName).download();
         const htmlContent = file.toString();
-
-        // 2. Compile with Data
         const template = handlebars.compile(htmlContent);
         const finalHtml = template(data);
 
-        // 3. Launch Playwright
-        browser = await playwright.chromium.launch({
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-        });
+        browser = await playwright.chromium.launch({ args: ['--no-sandbox'] });
         const page = await browser.newPage();
-
-        // Wait for network to be idle to ensure styles/images load
         await page.setContent(finalHtml, { waitUntil: 'networkidle' });
-
-        const pdf = await page.pdf({
-            format: 'A4',
-            printBackground: true
-        });
+        const pdf = await page.pdf({ format: 'A4', printBackground: true });
 
         await browser.close();
-
         res.contentType("application/pdf");
         res.send(pdf);
     } catch (error) {
         if (browser) await browser.close();
-        console.error(error);
-        res.status(500).send(`Error: ${error.message}`);
+        res.status(500).send(error.message);
     }
 });
 
