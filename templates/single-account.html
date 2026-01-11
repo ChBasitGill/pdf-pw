@@ -1,82 +1,126 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@sebgroup/chlorophyll/dist/css/chlorophyll.min.css"
+    />
     <style>
+      :root {
+        --seb-green: #009245;
+        --seb-dark-blue: #002d47;
+        --seb-grey: #f8f8f8;
+      }
+
       body {
-        font-family: sans-serif;
+        background-color: white;
         margin: 0;
-        padding: 20px;
+        padding: 0;
       }
-      .page-break {
+
+      /* Cover Page Styling */
+      .cover-page {
+        height: 297mm; /* A4 Height */
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 80px;
+        background-color: var(--seb-dark-blue);
+        color: white;
         page-break-after: always;
+        -webkit-print-color-adjust: exact;
       }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
+
+      .seb-logo-placeholder {
+        width: 120px;
+        height: 120px;
+        background-color: var(--seb-green);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 24px;
       }
+
+      .cover-footer {
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+        padding-top: 20px;
+      }
+
+      /* Report Body Styling */
+      .report-content {
+        padding: 40px;
+      }
+
       thead {
         display: table-header-group;
-      } /* Repeats header on every page */
-      th,
-      td {
-        border-bottom: 1px solid #ddd;
-        padding: 8px;
-        text-align: left;
       }
-      .chart-container {
-        width: 100%;
-        height: 400px;
-        margin-bottom: 50px;
+      tr {
+        page-break-inside: avoid;
+      }
+
+      .table thead th {
+        background-color: var(--seb-grey);
+        border-bottom: 2px solid var(--seb-green);
+        color: var(--seb-dark-blue);
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 1px;
       }
     </style>
   </head>
   <body>
-    <h1>{{reportTitle}}</h1>
-    <p>{{summary}}</p>
+    <div class="cover-page">
+      <div class="seb-logo-placeholder">SEB</div>
 
-    <div class="chart-container">
-      <canvas id="myChart"></canvas>
+      <div>
+        <h1 class="display-1" style="color: var(--seb-green); font-size: 64px">
+          {{reportTitle}}
+        </h1>
+        <p class="lead" style="font-size: 24px; opacity: 0.8">
+          Internal Financial Analytics Report
+        </p>
+      </div>
+
+      <div class="cover-footer">
+        <div class="row">
+          <div class="col-6">
+            <strong>Generated At:</strong><br />
+            {{generatedAt}}
+          </div>
+          <div class="col-6 text-end">
+            <strong>Classification:</strong><br />
+            Internal / Confidential
+          </div>
+        </div>
+      </div>
     </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Date</th>
-          <th>Description</th>
-          <th>Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each items}}
-        <tr>
-          <td>{{this.id}}</td>
-          <td>{{this.date}}</td>
-          <td>{{this.description}}</td>
-          <td>${{this.amount}}</td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
+    <div class="report-content">
+      <h2 class="h3 mb-4 text-blue">Executive Data Summary</h2>
+      <p class="mb-5">{{summary}}</p>
 
-    <script>
-      const ctx = document.getElementById("myChart").getContext("2d");
-      new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: ["Jan", "Feb", "Mar", "Apr", "May"],
-          datasets: [
-            {
-              label: "Monthly Revenue",
-              data: [12, 19, 3, 5, 2],
-              backgroundColor: "rgba(54, 162, 235, 0.5)",
-            },
-          ],
-        },
-        options: { animation: false }, // Disable animation for instant PDF capture
-      });
-    </script>
+      <table class="table table-lined">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Transaction Date</th>
+            <th>Region</th>
+            <th class="text-end">Amount (EUR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each items}}
+          <tr>
+            <td><strong>#{{this.id}}</strong></td>
+            <td>{{this.date}}</td>
+            <td><span class="badge bg-success-light">{{this.region}}</span></td>
+            <td class="text-end font-monospace">{{this.amount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
   </body>
 </html>
