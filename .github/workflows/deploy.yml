@@ -1,4 +1,4 @@
-name: Build and Deploy Dual Stack
+name: Build, Deploy and Benchmark
 
 on:
   push:
@@ -6,8 +6,10 @@ on:
 
 env:
   PROJECT_ID: pdf-pw
-  REGION: europe-north1
+  REGION: europe-north1 # Cloud Run Region
+  TASK_REGION: europe-west1 # Cloud Tasks Region
   BUCKET_NAME: pdf-pw-templates
+  QUEUE_NAME: pdf-benchmark-queue
 
 jobs:
   deploy:
@@ -15,6 +17,9 @@ jobs:
     permissions:
       contents: "read"
       id-token: "write"
+    outputs:
+      node_url: ${{ steps.deploy-node.outputs.url }}
+      python_url: ${{ steps.deploy-python.outputs.url }}
 
     steps:
       - name: Checkout
@@ -25,7 +30,7 @@ jobs:
         with:
           credentials_json: "${{ secrets.GCP_SA_KEY }}"
 
-      # Sync the shared templates folder
+      # Sync shared templates folder to GCS
       - name: Upload Templates to GCS
         uses: "google-github-actions/upload-cloud-storage@v2"
         with:
@@ -34,25 +39,58 @@ jobs:
           parent: false
 
       # --- NODE.JS SERVICE ---
-      - name: Build and Push Node.js
+      - name: Build & Deploy Node.js
+        id: deploy-node
         run: |-
           gcloud builds submit nodejs/ --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/pdf-node:${{ github.sha }}
-
-      - name: Deploy Node.js to Cloud Run
-        run: |-
-          gcloud run deploy pdf-node \
+          URL=$(gcloud run deploy pdf-node \
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/pdf-node:${{ github.sha }} \
             --region ${{ env.REGION }} \
-            --cpu 2 --memory 4Gi --timeout 300 --allow-unauthenticated
+            --cpu 2 --memory 4Gi --timeout 300 --allow-unauthenticated \
+            --format='value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
 
       # --- PYTHON SERVICE ---
-      - name: Build and Push Python
+      - name: Build & Deploy Python
+        id: deploy-python
         run: |-
           gcloud builds submit python/ --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/pdf-python:${{ github.sha }}
-
-      - name: Deploy Python to Cloud Run
-        run: |-
-          gcloud run deploy pdf-python \
+          URL=$(gcloud run deploy pdf-python \
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/pdf-python:${{ github.sha }} \
             --region ${{ env.REGION }} \
-            --cpu 2 --memory 4Gi --timeout 300 --allow-unauthenticated
+            --cpu 2 --memory 4Gi --timeout 300 --allow-unauthenticated \
+            --format='value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+  benchmark:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        uses: "google-github-actions/auth@v2"
+        with:
+          credentials_json: "${{ secrets.GCP_SA_KEY }}"
+
+      - name: Trigger Load Test
+        run: |-
+          # Construct a sample payload for the benchmark
+          echo '{"templateName":"single-account.html","data":{"reportTitle":"CI/CD Load Test","summary":"Automated performance check.","items":[{"id":1,"amount":1250,"description":"Benchmark Item"}]}}' > payload.json
+
+          echo "Queueing 10 requests for Node.js..."
+          for i in {1..10}; do
+            gcloud tasks create-http-task --queue=${{ env.QUEUE_NAME }} --location=${{ env.TASK_REGION }} \
+            --url="${{ needs.deploy.outputs.node_url }}/generate" --method=POST \
+            --header="Content-Type:application/json" --body-file=payload.json
+          done
+
+          echo "Queueing 10 requests for Python..."
+          for i in {1..10}; do
+            gcloud tasks create-http-task --queue=${{ env.QUEUE_NAME }} --location=${{ env.TASK_REGION }} \
+            --url="${{ needs.deploy.outputs.python_url }}/generate" --method=POST \
+            --header="Content-Type:application/json" --body-file=payload.json
+          done
+
+      - name: Cleanup on Failure
+        if: failure()
+        run: |-
+          gcloud tasks queues purge ${{ env.QUEUE_NAME }} --location=${{ env.TASK_REGION }}
