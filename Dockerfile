@@ -1,5 +1,5 @@
 # Use the official stable tag without the 'v' prefix
-FROM mcr.microsoft.com/playwright:1.57.0-noble
+FROM mcr.microsoft.com/playwright:1.57.0
 
 WORKDIR /app
 
