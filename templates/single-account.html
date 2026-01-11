@@ -1,98 +1,82 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       body {
-        font-family: "Helvetica", sans-serif;
-        color: #333;
-        margin: 40px;
+        font-family: sans-serif;
+        margin: 0;
+        padding: 20px;
       }
-      .invoice-box {
-        max-width: 800px;
-        margin: auto;
-        border: 1px solid #eee;
-        padding: 30px;
-      }
-      .header {
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 2px solid #007bff;
-        padding-bottom: 20px;
-      }
-      .details {
-        margin-top: 30px;
-        display: flex;
-        justify-content: space-between;
+      .page-break {
+        page-break-after: always;
       }
       table {
         width: 100%;
-        line-height: inherit;
-        text-align: left;
         border-collapse: collapse;
-        margin-top: 30px;
-      }
-      table th {
-        background: #f8f8f8;
-        border-bottom: 1px solid #ddd;
-        padding: 10px;
-      }
-      table td {
-        padding: 10px;
-        border-bottom: 1px solid #eee;
-      }
-      .total {
-        font-weight: bold;
-        font-size: 1.2em;
-        text-align: right;
         margin-top: 20px;
-        color: #007bff;
+      }
+      thead {
+        display: table-header-group;
+      } /* Repeats header on every page */
+      th,
+      td {
+        border-bottom: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      .chart-container {
+        width: 100%;
+        height: 400px;
+        margin-bottom: 50px;
       }
     </style>
   </head>
   <body>
-    <div class="invoice-box">
-      <div class="header">
-        <div>
-          <h1>INVOICE</h1>
-          <p>#{{invoiceNumber}}</p>
-        </div>
-        <div style="text-align: right"><strong>Date:</strong> {{date}}</div>
-      </div>
+    <h1>{{reportTitle}}</h1>
+    <p>{{summary}}</p>
 
-      <div class="details">
-        <div>
-          <strong>From:</strong><br />
-          Your Company Name<br />
-          123 Tech Lane, Finland
-        </div>
-        <div>
-          <strong>To:</strong><br />
-          {{customerName}}<br />
-          {{customerEmail}}
-        </div>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th>Qty</th>
-            <th>Price</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each items}}
-          <tr>
-            <td>{{this.desc}}</td>
-            <td>{{this.qty}}</td>
-            <td>${{this.price}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-
-      <div class="total">Total: ${{totalAmount}}</div>
+    <div class="chart-container">
+      <canvas id="myChart"></canvas>
     </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+        <tr>
+          <td>{{this.id}}</td>
+          <td>{{this.date}}</td>
+          <td>{{this.description}}</td>
+          <td>${{this.amount}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <script>
+      const ctx = document.getElementById("myChart").getContext("2d");
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["Jan", "Feb", "Mar", "Apr", "May"],
+          datasets: [
+            {
+              label: "Monthly Revenue",
+              data: [12, 19, 3, 5, 2],
+              backgroundColor: "rgba(54, 162, 235, 0.5)",
+            },
+          ],
+        },
+        options: { animation: false }, // Disable animation for instant PDF capture
+      });
+    </script>
   </body>
 </html>

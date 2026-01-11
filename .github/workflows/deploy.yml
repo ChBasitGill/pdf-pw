@@ -1,4 +1,4 @@
-name: Build and Deploy to Cloud Run
+name: Build and Deploy
 
 on:
   push:
@@ -8,6 +8,7 @@ env:
   PROJECT_ID: pdf-pw
   REGION: europe-north1
   SERVICE_NAME: pdf-service
+  BUCKET_NAME: pdf-pw-templates
 
 jobs:
   deploy:
@@ -25,6 +26,14 @@ jobs:
         with:
           credentials_json: "${{ secrets.GCP_SA_KEY }}"
 
+      # NEW STEP: Automatically syncs your local templates folder to GCS
+      - name: Upload Templates to GCS
+        uses: "google-github-actions/upload-cloud-storage@v2"
+        with:
+          path: "templates/" # This folder in your repo
+          destination: "${{ env.BUCKET_NAME }}"
+          parent: false # Uploads files directly into the bucket root
+
       - name: Build and Push Container
         run: |-
           gcloud builds submit --tag ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/${{ env.SERVICE_NAME }}:${{ github.sha }}
@@ -35,5 +44,7 @@ jobs:
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/pdf-repo/${{ env.SERVICE_NAME }}:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --platform managed \
-            --memory 2Gi \
+            --cpu 2 \
+            --memory 4Gi \
+            --timeout 300 \
             --allow-unauthenticated
